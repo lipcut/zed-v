@@ -9,7 +9,7 @@ This extension adds support for the [V programming language](https://vlang.org/)
 3. Search for `v` and click on install
 
 ## Language Server Support
-This extension automatically tries to download [`v-analyzer`](https://github.com/vlang/v-analyzer). If the download keeps failing, you must manually install [`v-analyzer`](https://github.com/vlang/v-analyzer).
+This extension automatically tries to download [`VLS`](https://github.com/vlang/vls). If the download keeps failing, you must manually install [`VLS`](https://github.com/vlang/vls).
 
 ## Runnables
 By default `runnables` won't do anything as they only run appropriately tagged tasks.

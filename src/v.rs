@@ -1,6 +1,6 @@
 use std::fs;
 use zed::{CodeLabel, CodeLabelSpan, LanguageServerId};
-use zed_extension_api::{self as zed, Result};
+use zed_extension_api::{self as zed, CodeLabelSpanLiteral, Result};
 
 struct VExtension {
 	current_version: String,
@@ -8,7 +8,7 @@ struct VExtension {
 }
 
 fn try_local_install<T>(err: T, worktree: &zed::Worktree) -> Result<String, T> {
-	if let Some(path) = worktree.which("v-analyzer") {
+	if let Some(path) = worktree.which("vls") {
 		return Ok(path);
 	}
 	return Err(err);
@@ -20,7 +20,7 @@ fn language_server_binary_path_no_fallback(
 	worktree: &zed::Worktree,
 ) -> Result<String> {
 	if let Some(cache) = selff.cached_binary_path.clone() {
-		if let Some(local) = worktree.which("v-analyzer") {
+		if let Some(local) = worktree.which("vls") {
 			if local != cache && fs::metadata(&cache).map_or(false, |stat| stat.is_file()) {
 				return Ok(cache);
 			}
@@ -36,7 +36,7 @@ fn language_server_binary_path_no_fallback(
 	);
 
 	let asset_name = format!(
-		"v-analyzer-{os}-{arch}{extension}",
+		"vls-{os}-{arch}{extension}",
 		arch = match arch {
 			zed::Architecture::Aarch64 => "arm64",
 			zed::Architecture::X86 => "x86",
@@ -54,7 +54,7 @@ fn language_server_binary_path_no_fallback(
 	);
 	
 	let release = zed::latest_github_release(
-		"lv37/v-analyzer",
+		"lv37/vls",
 		zed::GithubReleaseOptions {
 			require_assets: true,
 			pre_release: false,
@@ -133,21 +133,36 @@ impl zed::Extension for VExtension {
 		_language_server_id: &LanguageServerId,
 		completion: zed::lsp::Completion,
 	) -> Option<zed::CodeLabel> {
-		let (label, start_idx) = match (completion.kind, completion.detail) {
-			(_, None) => (completion.label, 0),
-			(Some(zed::lsp::CompletionKind::Function), Some(a)) => (a, 3),
-			(Some(zed::lsp::CompletionKind::Method), Some(a)) => {
-				let pure = after_first(&a, ')').unwrap_or(a)[1..].to_string();
-				(format!("fn {}", pure), 3)
-			}
-			(_, Some(a)) => (format!("{} {}", completion.label, a), 0),
+		let (highlight_name, label) = match completion.kind {
+		    Some(zed::lsp::CompletionKind::Struct) => ("type", completion.label),
+			Some(zed::lsp::CompletionKind::Interface) => ("type", completion.label),
+			Some(zed::lsp::CompletionKind::Function) => ("function", completion.label),
+			Some(zed::lsp::CompletionKind::Method) => ("function", completion.label),
+			_ => ("identifier", completion.label),
 		};
 
-		Some(CodeLabel {
-			spans: vec![CodeLabelSpan::code_range(start_idx..label.len())],
-			filter_range: (0..(label.len() - start_idx)).into(),
-			code: label,
-		})
+		Some(
+    		CodeLabel {
+    			spans: vec![
+    			    Some(
+    					CodeLabelSpan::Literal(
+       					CodeLabelSpanLiteral {
+       					    text: label.clone(),
+      						highlight_name: Some(String::from(highlight_name))
+       					}
+      		        )
+    				),
+    				completion.detail.map(|detail| CodeLabelSpan::Literal(
+    					CodeLabelSpanLiteral {
+    					    text: format!(" {}", detail),
+    						highlight_name: Some(String::from("type"))
+    					}
+    				))
+    			].into_iter().flatten().collect(),
+    			filter_range: (0..label.len()).into(),
+    			code: label,	
+    		}
+		)
 	}
 }
 
